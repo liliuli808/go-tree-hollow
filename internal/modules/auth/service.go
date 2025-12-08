@@ -2,7 +2,9 @@ package auth
 
 import (
 	"errors"
+
 	"go-tree-hollow/internal/models"
+
 	"go-tree-hollow/pkg/utils"
 )
 

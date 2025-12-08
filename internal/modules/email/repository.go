@@ -1,13 +1,36 @@
-// internal/repository/redis/code.go
-package redis
+package email
 
 import (
 	"context"
 	"fmt"
+	"go-tree-hollow/configs"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 )
+
+func NewClient(cfg *configs.RedisConfig) (*redis.Client, error) {
+	fmt.Println(cfg.Password, 1)
+	client := redis.NewClient(&redis.Options{
+		Addr:         cfg.Addr,
+		Password:     cfg.Password,
+		DB:           cfg.DB,
+		PoolSize:     cfg.PoolSize,
+		MinIdleConns: cfg.MinIdleConns,
+		MaxRetries:   cfg.MaxRetries,
+		DialTimeout:  cfg.DialTimeout,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+	})
+
+	// 测试连接
+	ctx := context.Background()
+	if err := client.Ping(ctx).Err(); err != nil {
+		return nil, fmt.Errorf("redis 连接失败: %w", err)
+	}
+
+	return client, nil
+}
 
 type CodeRepository struct {
 	client *redis.Client

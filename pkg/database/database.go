@@ -25,11 +25,11 @@ func NewDB(dsn string) (*gorm.DB, error) {
         return nil, fmt.Errorf("failed to connect database: %w", err)
     }
 
-    // 自动迁移
-    err = db.AutoMigrate(&models.User{})
-    if err != nil {
-        return nil, fmt.Errorf("failed to migrate database: %w", err)
-    }
+    	// 自动迁移
+	err = db.AutoMigrate(&models.User{}, &models.Post{}, &models.Tag{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to migrate database: %w", err)
+	}
 
     return db, nil
 }

@@ -6,6 +6,8 @@ import (
 	"go-tree-hollow/internal/middleware"
 	"go-tree-hollow/internal/modules/auth"
 	"go-tree-hollow/internal/modules/email"
+	"go-tree-hollow/internal/modules/post"
+	"go-tree-hollow/internal/modules/upload"
 	"go-tree-hollow/internal/modules/user"
 	"go-tree-hollow/pkg/database"
 	"log"
@@ -78,6 +80,19 @@ func (s *Server) setupRoutes() {
 	)
 	emailHandler := email.NewEmailHandler(emailService)
 	email.RegisterRoutes(v1, emailHandler)
+
+	// 内容模块 (需要认证)
+	postRepo := post.NewRepository(s.db)
+	postService := post.NewService(s.db, postRepo)
+	postHandler := post.NewHandler(postService)
+	post.Routes(v1, postHandler, middleware.AuthRequired())
+
+	// 文件上传模块 (需要认证)
+	uploadHandler := upload.NewHandler()
+	upload.Routes(v1, uploadHandler, middleware.AuthRequired())
+
+	// 提供静态文件访问
+	s.router.Static("/uploads", "./uploads")
 
 	// 健康检查
 	s.router.GET("/health", func(c *gin.Context) {

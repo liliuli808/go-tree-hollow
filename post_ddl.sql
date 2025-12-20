@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS posts (
     deleted_at TIMESTAMP WITH TIME ZONE,
     user_id BIGINT NOT NULL,
     type VARCHAR(255) NOT NULL,
+    tag VARCHAR(255) NOT NULL,
     text_content TEXT,
     media_urls JSONB,
     status VARCHAR(255) NOT NULL DEFAULT 'draft',

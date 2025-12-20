@@ -2,6 +2,7 @@ package post
 
 import (
 	"go-tree-hollow/internal/models"
+
 	"gorm.io/gorm"
 )
 
@@ -41,7 +42,7 @@ func (r *repository) Create(post *models.Post) error {
 // 如果找到则返回 models.Post，否则返回错误。
 func (r *repository) FindByID(id uint) (*models.Post, error) {
 	var post models.Post
-	err := r.db.Preload("User").Preload("Tags").First(&post, id).Error
+	err := r.db.Preload("User").Preload("Tag").First(&post, id).Error
 	return &post, err
 }
 
@@ -66,7 +67,7 @@ func (r *repository) FindAllByUserID(userID uint, page, pageSize int) ([]*models
 	var total int64
 
 	// 构建按用户ID过滤帖子的基本查询。
-	query := r.db.Model(&models.Post{}).Where("user_id = ?", userID)
+	query := r.db.Model(&models.Post{})
 
 	// 获取与查询匹配的帖子总数，用于分页元数据。
 	if err := query.Count(&total).Error; err != nil {
@@ -76,7 +77,7 @@ func (r *repository) FindAllByUserID(userID uint, page, pageSize int) ([]*models
 	// 计算分页的偏移量。
 	offset := (page - 1) * pageSize
 	// 执行分页查询，预加载 User 并按创建日期排序。
-	err := query.Preload("User").Preload("Tags").Offset(offset).Limit(pageSize).Order("created_at desc").Find(&posts).Error
+	err := query.Preload("User").Preload("Tag").Offset(offset).Limit(pageSize).Order("created_at desc").Find(&posts).Error
 
 	return posts, total, err
 }

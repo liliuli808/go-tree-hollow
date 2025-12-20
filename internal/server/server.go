@@ -7,6 +7,7 @@ import (
 	"go-tree-hollow/internal/modules/auth"
 	"go-tree-hollow/internal/modules/email"
 	"go-tree-hollow/internal/modules/post"
+	"go-tree-hollow/internal/modules/tag"
 	"go-tree-hollow/internal/modules/upload"
 	"go-tree-hollow/internal/modules/user"
 	"go-tree-hollow/pkg/database"
@@ -29,6 +30,9 @@ type Server struct {
 func NewServer(config *configs.Config) (*Server, error) {
 	// 初始化数据库
 	db, err := database.NewDB(config.DatabaseDSN)
+	if err != nil {
+		return nil, err
+	}
 
 	redisClient, err := email.NewClient(&config.Redis)
 	if err != nil {
@@ -85,7 +89,24 @@ func (s *Server) setupRoutes() {
 	postRepo := post.NewRepository(s.db)
 	postService := post.NewService(s.db, postRepo)
 	postHandler := post.NewHandler(postService)
-	post.Routes(v1, postHandler, middleware.AuthRequired())
+	
+	// 点赞功能
+	likeRepo := post.NewLikeRepository(s.db)
+	likeService := post.NewLikeService(likeRepo)
+	likeHandler := post.NewLikeHandler(likeService)
+	
+	// 评论功能
+	commentRepo := post.NewCommentRepository(s.db)
+	commentService := post.NewCommentService(commentRepo)
+	commentHandler := post.NewCommentHandler(commentService)
+	
+	post.Routes(v1, postHandler, likeHandler, commentHandler, middleware.AuthRequired())
+
+	// 标签模块
+	tagRepo := tag.NewRepository(s.db)
+	tagService := tag.NewService(s.db, tagRepo)
+	tagHandler := tag.NewHandler(tagService)
+	tag.RegisterRoutes(v1, tagHandler)
 
 	// 文件上传模块 (需要认证)
 	uploadHandler := upload.NewHandler()

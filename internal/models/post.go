@@ -14,5 +14,6 @@ type Post struct {
 	TextContent string         `json:"text_content,omitempty" gorm:"type:text"`
 	MediaURLs   datatypes.JSON `json:"media_urls,omitempty" gorm:"type:json"`
 	Status      string         `json:"status" gorm:"not null;default:'draft';index"` // "draft", "published"
-	Tags        []*Tag         `json:"tags,omitempty" gorm:"many2many:post_tags;"`
+	TagID       *uint          `json:"tag_id,omitempty" gorm:"index"`
+	Tag         *Tag           `json:"tag,omitempty" gorm:"foreignKey:TagID"`
 }

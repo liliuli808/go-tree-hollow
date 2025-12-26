@@ -13,5 +13,6 @@ func RegisterRoutes(router *gin.RouterGroup, handler *Handler) {
 	userGroup.Use(middleware.AuthRequired())
 	{
 		userGroup.GET("/profile", handler.GetProfile)
+		userGroup.PUT("/profile", handler.UpdateProfile)
 	}
 }

@@ -20,6 +20,7 @@ type CreatePostDto struct {
 	Images      []string `json:"images"`
 	Video       string   `json:"video"`
 	Audio       string   `json:"audio"`
+	Cover       string   `json:"cover"`
 	Status      string   `json:"status"`
 	TagID       *uint    `json:"tag_id"` // Single tag ID for one-to-one relationship
 }
@@ -31,6 +32,7 @@ type UpdatePostDto struct {
 	Images      []string `json:"images"`
 	Video       *string  `json:"video"`
 	Audio       *string  `json:"audio"`
+	Cover       *string  `json:"cover"`
 	Status      *string  `json:"status"`
 	TagID       *uint    `json:"tag_id"` // Single tag ID
 }
@@ -41,33 +43,37 @@ type Service interface {
 	// CreatePost handles the creation of a new post, including sensitive word filtering and validation.
 	CreatePost(dto *CreatePostDto) (*models.Post, error)
 	// GetPost retrieves a single post by its ID from the database.
-	GetPost(id uint) (*models.Post, error)
+	GetPost(id uint, currentUserID *uint) (*models.Post, error)
 	// UpdatePost handles updates to an existing post, applying sensitive word filtering and partial updates.
 	UpdatePost(id uint, dto *UpdatePostDto) (*models.Post, error)
 	// DeletePost handles the soft deletion of a post by its ID.
 	DeletePost(id uint) error
-	// ListPosts retrieves a paginated list of posts associated with a specific user ID.
-	ListPosts(userID uint, page, pageSize int) ([]*models.Post, int64, error)
+	// ListPosts retrieves a paginated list of posts associated with a specific user ID, optionally filtered by tag.
+	ListPosts(userID uint, page, pageSize int, tagID *uint, currentUserID *uint) ([]*models.Post, int64, error)
+	// GetAllPosts retrieves a paginated list of all posts from all users, optionally filtered by tag.
+	GetAllPosts(page, pageSize int, tagID *uint, currentUserID *uint) ([]*models.Post, int64, error)
 }
 
 // service implements the Service interface, encapsulating business rules and interacting with the repository layer.
 type service struct {
-	db     *gorm.DB
-	repo   Repository
-	filter *sensitive.Filter
+	db       *gorm.DB
+	repo     Repository
+	likeRepo LikeRepository
+	filter   *sensitive.Filter
 }
 
 // NewService creates a new post service instance.
-func NewService(db *gorm.DB, repo Repository) Service {
+func NewService(db *gorm.DB, repo Repository, likeRepo LikeRepository) Service {
 	filter := sensitive.New()
 	err := filter.LoadWordDict("dict.txt")
 	if err != nil {
 		log.Printf("Warning: Failed to load sensitive word dictionary from 'dict.txt': %v", err)
 	}
 	return &service{
-		db:     db,
-		repo:   repo,
-		filter: filter,
+		db:       db,
+		repo:     repo,
+		likeRepo: likeRepo,
+		filter:   filter,
 	}
 }
 
@@ -123,6 +129,7 @@ func (s *service) CreatePost(dto *CreatePostDto) (*models.Post, error) {
 		Type:        postType,
 		TextContent: filteredText,
 		MediaURLs:   datatypes.JSON(mediaUrlsJSON),
+		CoverURL:    dto.Cover,
 		Status:      "draft",
 	}
 	if dto.Status != "" {
@@ -151,8 +158,22 @@ func (s *service) CreatePost(dto *CreatePostDto) (*models.Post, error) {
 }
 
 // GetPost retrieves a single post by ID.
-func (s *service) GetPost(id uint) (*models.Post, error) {
-	return s.repo.FindByID(id)
+func (s *service) GetPost(id uint, currentUserID *uint) (*models.Post, error) {
+	post, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	s.fillPostLikeInfo(post, currentUserID)
+	return post, nil
+}
+
+func (s *service) fillPostLikeInfo(post *models.Post, currentUserID *uint) {
+	count, _ := s.likeRepo.CountByPost(post.ID)
+	post.LikesCount = count
+	if currentUserID != nil {
+		liked, _ := s.likeRepo.FindByUserAndPost(*currentUserID, post.ID)
+		post.IsLiked = liked != nil
+	}
 }
 
 // UpdatePost handles updating an existing post.
@@ -193,6 +214,10 @@ func (s *service) UpdatePost(id uint, dto *UpdatePostDto) (*models.Post, error) 
 		post.MediaURLs = datatypes.JSON(mediaUrlsJSON)
 	}
 
+	if dto.Cover != nil {
+		post.CoverURL = *dto.Cover
+	}
+
 	if dto.Status != nil {
 		post.Status = *dto.Status
 	}
@@ -222,13 +247,36 @@ func (s *service) DeletePost(id uint) error {
 	return s.repo.Delete(id)
 }
 
-// ListPosts 检索特定用户的分页帖子列表。
-func (s *service) ListPosts(userID uint, page, pageSize int) ([]*models.Post, int64, error) {
+// ListPosts 检索特定用户的分页帖子列表，可选按 tag 过滤。
+func (s *service) ListPosts(userID uint, page, pageSize int, tagID *uint, currentUserID *uint) ([]*models.Post, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 {
 		pageSize = 10
 	}
-	return s.repo.FindAllByUserID(userID, page, pageSize)
+	posts, total, err := s.repo.FindAllByUserID(userID, page, pageSize, tagID)
+	if err == nil {
+		for _, post := range posts {
+			s.fillPostLikeInfo(post, currentUserID)
+		}
+	}
+	return posts, total, err
+}
+
+// GetAllPosts 检索所有用户的分页帖子列表，可选按 tag 过滤。
+func (s *service) GetAllPosts(page, pageSize int, tagID *uint, currentUserID *uint) ([]*models.Post, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	posts, total, err := s.repo.FindAll(page, pageSize, tagID)
+	if err == nil {
+		for _, post := range posts {
+			s.fillPostLikeInfo(post, currentUserID)
+		}
+	}
+	return posts, total, err
 }

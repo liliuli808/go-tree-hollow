@@ -72,8 +72,15 @@ func (h *Handler) GetPost(c *gin.Context) {
 		return
 	}
 
+	// Parse optional current userID from context
+	var currentUserIDPtr *uint
+	if userID, exists := c.Get("userID"); exists {
+		uid := userID.(uint)
+		currentUserIDPtr = &uid
+	}
+
 	// 调用服务层根据ID检索帖子。
-	post, err := h.service.GetPost(uint(id))
+	post, err := h.service.GetPost(uint(id), currentUserIDPtr)
 	if err != nil {
 		// 如果服务返回错误，通常意味着未找到帖子。
 		c.JSON(http.StatusNotFound, gin.H{"error": "未找到帖子"})
@@ -155,16 +162,17 @@ func (h *Handler) DeletePost(c *gin.Context) {
 }
 
 // ListPosts 处理列出特定用户帖子的 HTTP GET 请求。
-// 它期望用户ID作为路径参数，以及可选的 'page' 和 'pageSize' 查询参数用于分页。
+// 它期望用户ID作为路径参数，以及可选的 'page'、'pageSize' 和 'tag_id' 查询参数用于分页和过滤。
 // @Summary 列出用户的帖子
-// @Description 检索属于特定用户的分页帖子列表。
+// @Description 检索属于特定用户的分页帖子列表，可选按标签过滤。
 // @Tags posts
 // @Produce json
 // @Param userID path int true "用户ID"
 // @Param page query int false "页码 (默认为1)"
 // @Param pageSize query int false "每页项目数 (默认为10)"
+// @Param tag_id query int false "标签ID (可选，用于按标签过滤帖子)"
 // @Success 200 {object} gin.H{data=[]models.Post,total=int64,page=int} "成功检索到帖子列表"
-// @Failure 400 {object} gin.H "无效的用户ID格式或查询参数"
+// @Failure 400 {object} gin.H "无效的用户ID格式、标签ID格式或查询参数"
 // @Failure 500 {object} gin.H "内部服务器错误"
 // @Security BearerAuth
 // @Router /users/{userID}/posts [get]
@@ -181,8 +189,80 @@ func (h *Handler) ListPosts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 
-	// 调用服务层获取给定用户的分页帖子列表。
-	posts, total, err := h.service.ListPosts(uint(userID), page, pageSize)
+	// 解析可选的 'tag_id' 查询参数
+	var tagIDPtr *uint
+	if tagIDStr := c.Query("tag_id"); tagIDStr != "" {
+		tagID, err := strconv.ParseUint(tagIDStr, 10, 32)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的标签ID格式"})
+			return
+		}
+		tagIDUint := uint(tagID)
+		tagIDPtr = &tagIDUint
+	}
+
+	// Parse optional current userID from context
+	var currentUserIDPtr *uint
+	if currUID, exists := c.Get("userID"); exists {
+		uid := currUID.(uint)
+		currentUserIDPtr = &uid
+	}
+
+	// 调用服务层获取给定用户的分页帖子列表，可选按 tag 过滤。
+	posts, total, err := h.service.ListPosts(uint(userID), page, pageSize, tagIDPtr, currentUserIDPtr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 响应帖子列表、总数和当前页，以及 200 OK 状态。
+	c.JSON(http.StatusOK, gin.H{
+		"data":  posts,
+		"total": total,
+		"page":  page,
+	})
+}
+
+// GetAllPosts 处理列出所有用户帖子的 HTTP GET 请求。
+// 它接受可选的 'page'、'pageSize' 和 'tag_id' 查询参数用于分页和过滤。
+// @Summary 列出所有帖子
+// @Description 检索所有用户的分页帖子列表，可选按标签过滤。
+// @Tags posts
+// @Produce json
+// @Param page query int false "页码 (默认为1)"
+// @Param pageSize query int false "每页项目数 (默认为10)"
+// @Param tag_id query int false "标签ID (可选，用于按标签过滤帖子)"
+// @Success 200 {object} gin.H{data=[]models.Post,total=int64,page=int} "成功检索到帖子列表"
+// @Failure 400 {object} gin.H "无效的标签ID格式或查询参数"
+// @Failure 500 {object} gin.H "内部服务器错误"
+// @Security BearerAuth
+// @Router /posts [get]
+func (h *Handler) GetAllPosts(c *gin.Context) {
+	// 解析可选的 'page' 和 'pageSize' 查询参数，并设置默认值。
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+
+	// 解析可选的 'tag_id' 查询参数
+	var tagIDPtr *uint
+	if tagIDStr := c.Query("tag_id"); tagIDStr != "" {
+		tagID, err := strconv.ParseUint(tagIDStr, 10, 32)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的标签ID格式"})
+			return
+		}
+		tagIDUint := uint(tagID)
+		tagIDPtr = &tagIDUint
+	}
+
+	// Parse optional current userID from context
+	var currentUserIDPtr *uint
+	if currUID, exists := c.Get("userID"); exists {
+		uid := currUID.(uint)
+		currentUserIDPtr = &uid
+	}
+
+	// 调用服务层获取所有用户的分页帖子列表，可选按 tag 过滤。
+	posts, total, err := h.service.GetAllPosts(page, pageSize, tagIDPtr, currentUserIDPtr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

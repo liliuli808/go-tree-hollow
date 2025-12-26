@@ -2,6 +2,7 @@ package post
 
 import (
 	"go-tree-hollow/internal/models"
+
 	"gorm.io/gorm"
 )
 
@@ -26,7 +27,7 @@ func (r *likeRepository) Create(like *models.Like) error {
 }
 
 func (r *likeRepository) Delete(userID, postID uint) error {
-	return r.db.Where("user_id = ? AND post_id = ?", userID, postID).Delete(&models.Like{}).Error
+	return r.db.Unscoped().Where("user_id = ? AND post_id = ?", userID, postID).Delete(&models.Like{}).Error
 }
 
 func (r *likeRepository) FindByUserAndPost(userID, postID uint) (*models.Like, error) {

@@ -26,3 +26,6 @@ CREATE INDEX IF NOT EXISTS idx_posts_status ON posts (status);
 
 -- GORM uses this index for soft deletes
 CREATE INDEX IF NOT EXISTS idx_posts_deleted_at ON posts (deleted_at);
+
+
+ALTER TABLE posts ADD COLUMN cover_url VARCHAR(1024) DEFAULT NULL;

@@ -1,6 +1,5 @@
 package middleware
 
-
 import (
 	"go-tree-hollow/pkg/utils"
 	"net/http"
@@ -34,6 +33,34 @@ func AuthRequired() gin.HandlerFunc {
 		}
 
 		// 将用户信息存入上下文
+		c.Set("userID", claims.UserID)
+		c.Set("email", claims.Email)
+		c.Next()
+	}
+}
+
+// OptionalAuth 尝试获取用户信息，但不强制认证
+func OptionalAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.Next()
+			return
+		}
+
+		parts := strings.SplitN(authHeader, " ", 2)
+		if !(len(parts) == 2 && parts[0] == "Bearer") {
+			c.Next()
+			return
+		}
+
+		claims, err := utils.ParseToken(parts[1])
+		if err != nil {
+			c.Next()
+			return
+		}
+
+		// 将用户信息存入上下文，但不中断请求
 		c.Set("userID", claims.UserID)
 		c.Set("email", claims.Email)
 		c.Next()

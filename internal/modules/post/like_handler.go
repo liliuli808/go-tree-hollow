@@ -3,6 +3,7 @@ package post
 import (
 	"net/http"
 	"strconv"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -53,15 +54,9 @@ func (h *LikeHandler) GetLikeStatus(c *gin.Context) {
 	}
 
 	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	liked, err := h.service.IsLikedByUser(userID.(uint), uint(postID))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	var liked bool
+	if exists {
+		liked, _ = h.service.IsLikedByUser(userID.(uint), uint(postID))
 	}
 
 	count, err := h.service.GetLikeCount(uint(postID))

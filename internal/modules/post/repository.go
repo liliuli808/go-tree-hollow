@@ -16,8 +16,10 @@ type Repository interface {
 	Update(post *models.Post) error
 	// Delete 通过设置 'deleted_at' 时间戳将帖子标记为删除（软删除）。
 	Delete(id uint) error
-	// FindAllByUserID 检索特定用户的分页帖子列表。
-	FindAllByUserID(userID uint, page, pageSize int) ([]*models.Post, int64, error)
+	// FindAllByUserID 检索特定用户的分页帖子列表，可选按 tag 过滤。
+	FindAllByUserID(userID uint, page, pageSize int, tagID *uint) ([]*models.Post, int64, error)
+	// FindAll 检索所有用户的分页帖子列表，可选按 tag 过滤。
+	FindAll(page, pageSize int, tagID *uint) ([]*models.Post, int64, error)
 }
 
 // repository 使用 GORM 实现了 Repository 接口。
@@ -60,14 +62,19 @@ func (r *repository) Delete(id uint) error {
 	return r.db.Delete(&models.Post{}, id).Error
 }
 
-// FindAllByUserID 检索特定用户的分页帖子列表。
-// 它接收用户ID、页码和页面大小，返回帖子切片以及该用户帖子的总数和遇到的任何错误。
-func (r *repository) FindAllByUserID(userID uint, page, pageSize int) ([]*models.Post, int64, error) {
+// FindAllByUserID 检索特定用户的分页帖子列表，可选按 tag 过滤。
+// 它接收用户ID、页码、页面大小和可选的 tagID，返回帖子切片以及该用户帖子的总数和遇到的任何错误。
+func (r *repository) FindAllByUserID(userID uint, page, pageSize int, tagID *uint) ([]*models.Post, int64, error) {
 	var posts []*models.Post
 	var total int64
 
 	// 构建按用户ID过滤帖子的基本查询。
-	query := r.db.Model(&models.Post{})
+	query := r.db.Model(&models.Post{}).Where("user_id = ?", userID)
+
+	// 如果提供了 tagID，添加 tag 过滤
+	if tagID != nil {
+		query = query.Where("tag_id = ?", *tagID)
+	}
 
 	// 获取与查询匹配的帖子总数，用于分页元数据。
 	if err := query.Count(&total).Error; err != nil {
@@ -76,7 +83,34 @@ func (r *repository) FindAllByUserID(userID uint, page, pageSize int) ([]*models
 
 	// 计算分页的偏移量。
 	offset := (page - 1) * pageSize
-	// 执行分页查询，预加载 User 并按创建日期排序。
+	// 执行分页查询，预加载 User 和 Tag 并按创建日期排序。
+	err := query.Preload("User").Preload("Tag").Offset(offset).Limit(pageSize).Order("created_at desc").Find(&posts).Error
+
+	return posts, total, err
+}
+
+// FindAll 检索所有用户的分页帖子列表，可选按 tag 过滤。
+// 它接收页码、页面大小和可选的 tagID，返回帖子切片以及帖子的总数和遇到的任何错误。
+func (r *repository) FindAll(page, pageSize int, tagID *uint) ([]*models.Post, int64, error) {
+	var posts []*models.Post
+	var total int64
+
+	// 构建基本查询，不按用户ID过滤
+	query := r.db.Model(&models.Post{})
+
+	// 如果提供了 tagID，添加 tag 过滤
+	if tagID != nil {
+		query = query.Where("tag_id = ?", *tagID)
+	}
+
+	// 获取与查询匹配的帖子总数，用于分页元数据。
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 计算分页的偏移量。
+	offset := (page - 1) * pageSize
+	// 执行分页查询，预加载 User 和 Tag 并按创建日期排序。
 	err := query.Preload("User").Preload("Tag").Offset(offset).Limit(pageSize).Order("created_at desc").Find(&posts).Error
 
 	return posts, total, err

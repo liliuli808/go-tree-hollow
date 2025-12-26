@@ -1,6 +1,6 @@
 -- Likes table DDL for PostgreSQL
 CREATE TABLE IF NOT EXISTS likes (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP,
@@ -17,7 +17,7 @@ CREATE INDEX IF NOT EXISTS idx_likes_deleted_at ON likes(deleted_at);
 
 -- Comments table DDL for PostgreSQL
 CREATE TABLE IF NOT EXISTS comments (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP,

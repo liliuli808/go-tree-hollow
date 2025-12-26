@@ -5,6 +5,7 @@ import (
 	"go-tree-hollow/configs"
 	"go-tree-hollow/internal/middleware"
 	"go-tree-hollow/internal/modules/auth"
+	"go-tree-hollow/internal/modules/chat"
 	"go-tree-hollow/internal/modules/email"
 	"go-tree-hollow/internal/modules/post"
 	"go-tree-hollow/internal/modules/tag"
@@ -85,22 +86,22 @@ func (s *Server) setupRoutes() {
 	emailHandler := email.NewEmailHandler(emailService)
 	email.RegisterRoutes(v1, emailHandler)
 
-	// 内容模块 (需要认证)
-	postRepo := post.NewRepository(s.db)
-	postService := post.NewService(s.db, postRepo)
-	postHandler := post.NewHandler(postService)
-	
 	// 点赞功能
 	likeRepo := post.NewLikeRepository(s.db)
 	likeService := post.NewLikeService(likeRepo)
 	likeHandler := post.NewLikeHandler(likeService)
-	
+
+	// 内容模块 (需要认证)
+	postRepo := post.NewRepository(s.db)
+	postService := post.NewService(s.db, postRepo, likeRepo)
+	postHandler := post.NewHandler(postService)
+
 	// 评论功能
 	commentRepo := post.NewCommentRepository(s.db)
 	commentService := post.NewCommentService(commentRepo)
 	commentHandler := post.NewCommentHandler(commentService)
-	
-	post.Routes(v1, postHandler, likeHandler, commentHandler, middleware.AuthRequired())
+
+	post.Routes(v1, postHandler, likeHandler, commentHandler, middleware.AuthRequired(), middleware.OptionalAuth())
 
 	// 标签模块
 	tagRepo := tag.NewRepository(s.db)
@@ -111,6 +112,14 @@ func (s *Server) setupRoutes() {
 	// 文件上传模块 (需要认证)
 	uploadHandler := upload.NewHandler()
 	upload.Routes(v1, uploadHandler, middleware.AuthRequired())
+
+	// 聊天模块 (需要认证)
+	chatRepo := chat.NewRepository(s.db)
+	chatService := chat.NewService(chatRepo)
+	chatHub := chat.NewHub(chatService)
+	go chatHub.Run() // Start WebSocket hub in background
+	chatHandler := chat.NewHandler(chatService, chatHub)
+	chat.RegisterRoutes(v1, chatHandler)
 
 	// 提供静态文件访问
 	s.router.Static("/uploads", "./uploads")

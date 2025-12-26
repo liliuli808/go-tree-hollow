@@ -2,40 +2,58 @@ package user
 
 import (
 	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
+// Handler 处理用户相关的 HTTP 请求
 type Handler struct {
 	service *Service
 }
 
+// NewHandler 创建新的 Handler 实例
 func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-// GetProfile 处理获取用户资料请求
+// GetProfile 获取用户资料
 func (h *Handler) GetProfile(c *gin.Context) {
-	// 从认证中间件获取userID
+	// 从上下文中获取用户ID
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	uid, ok := userID.(uint)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "用户ID类型错误"})
-		return
-	}
-
-	profile, err := h.service.GetProfile(uid)
+	profile, err := h.service.GetMyProfile(userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "success",
-		"data":    profile,
-	})
+	c.JSON(http.StatusOK, profile)
+}
+
+// UpdateProfile 更新用户资料
+func (h *Handler) UpdateProfile(c *gin.Context) {
+	// 从上下文中获取用户ID
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var req UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	profile, err := h.service.UpdateProfile(userID.(uint), &req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, profile)
 }
